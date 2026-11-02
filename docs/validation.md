@@ -6,7 +6,8 @@ Checked 2026-11-02. Tests use disposable virtual WebAuthn authenticators, not pe
 |---|---|
 | Local Miniflare/workerd + browser | 18/18 passed, `results/local-tests.json` and TAP |
 | Linux Chromium CI | [Passing acceptance run](https://github.com/duanxianpi/self-hosted-mcp-auth/actions/runs/41504241887); 18 tests on commit 43b4076 |
-| Actual Deploy Button | Resource creation, schema migrations and application publish passed; `results/deploy-button.json` |
+| Original clone-and-deploy button | Resource creation, schema migrations and application publish passed; `results/deploy-button.json` |
+| Current README button: general Create an app → existing repository | Repository selection checked in the Dashboard. A clean first deployment through this entry has not been separately exercised. |
 | Button-created Worker + real HTTPS + D1/KV | 15/15 passed, `results/remote-tests.json` and TAP |
 | Redeploy without resetting owner/keys/grants | Passed; `results/redeploy.json` |
 | Public DCR + browser consent + PKCE | Passed, including deny, wrong verifier/resource, code replay and forged redirect |
