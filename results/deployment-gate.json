@@ -1,0 +1,28 @@
+{
+  "started_at": "2026-11-02T17:47:48.575Z",
+  "checks": [
+    {
+      "name": "CLI migrations before first provisioning",
+      "passed": false,
+      "expected_limitation": true,
+      "observation": "\n ⛅️ wrangler 4.156.1 (update available 4.156.2)\n───────────────────────────────────────────────\nResource location: remote \n\n\n\n✘ [ERROR] Couldn't find an auto-provisioned D1 DB named 'whiteboard-auth-poc-6752381e-db' for binding 'DB'. Run 'wrangler deploy' to provision it, or add 'database_name' / 'database_id' to your config.\n\n\n🪵  Logs were written to \"/private/tmp/whiteboard-auth-wrangler.log\"\n"
+    },
+    {
+      "name": "Auto-provision Worker + D1 + OAUTH_KV with no IDs",
+      "passed": true,
+      "observation": "\n ⛅️ wrangler 4.156.1 (update available 4.156.2)\n───────────────────────────────────────────────\nTotal Upload: 236.62 KiB / gzip: 52.33 KiB\n\nThe following bindings need to be provisioned:\nBinding              Resource          \nenv.OAUTH_KV         KV Namespace      \nenv.DB               D1 Database       \n\n\nProvisioning OAUTH_KV (KV Namespace)...\n🌀 Creating new KV Namespace \"whiteboard-auth-poc-6752381e-oauth-kv\"...\n✨ OAUTH_KV provisioned 🎉\n\nProvisioning DB (D1 Database)...\n🌀 Creating new D1 Database \"whiteboard-auth-poc-6752381e-db\"...\n✨ DB provisioned 🎉\n\n🎉 Resources provisioned, continuing with deployment...\n\nWorker Startup Time: 4 ms\nYour Worker has access to the following bindings:\nBinding                                                      Resource          \nenv.OAUTH_KV (cd449ea1a2f741b4a4495a2df229e0b7)              KV Namespace      \nenv.DB (d4e1ce99-4274-4342-8e89-198815f1920f)                D1 Database       \nenv.AUTH_LIMITER (30 requests/60s)                           Rate Limit        \n\nUploaded whiteboard-auth-poc-6752381e (2.65 sec)\nDeployed whiteboard-auth-poc-6752381e triggers (0.53 sec)\n  https://whiteboard-auth-poc-6752381e.duanxianpi.workers.dev\nCurrent Version ID: eee5a439-c0db-4256-905e-57b584f413cf\n"
+    },
+    {
+      "name": "Migrations after provisioning",
+      "passed": true,
+      "observation": "\n ⛅️ wrangler 4.156.1 (update available 4.156.2)\n───────────────────────────────────────────────\nResource location: remote \n\nMigrations to be applied:\n┌───────────────┐\n│ name          │\n├───────────────┤\n│ 0001_auth.sql │\n└───────────────┘\n? About to apply 1 migration(s)\nYour database may not be available to serve requests during the migration, continue?\n🤖 Using fallback value in non-interactive context: yes\n🌀 Executing on remote database DB (d4e1ce99-4274-4342-8e89-198815f1920f):\n🌀 To execute on your local development database, remove the --remote flag from your wrangler command.\n🚣 Executed 12 commands in 2.21ms\n┌───────────────┬────────┐\n│ name          │ status │\n├───────────────┼────────┤\n│ 0001_auth.sql │ ✅     │\n└───────────────┴────────┘\n"
+    },
+    {
+      "name": "Uninitialized deployment is fail-closed",
+      "passed": true
+    }
+  ],
+  "name": "whiteboard-auth-poc-6752381e",
+  "url": "https://whiteboard-auth-poc-6752381e.duanxianpi.workers.dev",
+  "finished_at": "2026-11-02T17:47:56.358Z"
+}

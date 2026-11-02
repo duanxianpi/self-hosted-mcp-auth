@@ -1,0 +1,9 @@
+{
+  "at": "2026-11-02T18:19:37.905Z",
+  "environment": "Miniflare/workerd + Edge virtual WebAuthn",
+  "exit_code": 0,
+  "passed": true,
+  "tests": 16,
+  "pass": 16,
+  "fail": 0
+}
