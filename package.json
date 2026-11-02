@@ -1,5 +1,5 @@
 {
-  "name": "whiteboard-self-hosted-auth",
+  "name": "self-hosted-mcp-auth",
   "version": "0.1.0",
   "private": true,
   "type": "module",

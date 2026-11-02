@@ -39,7 +39,7 @@ export async function options(request: Request, env: Env, purpose: string) {
   const credentials = purpose === 'login' ? [] : (await env.DB.prepare('SELECT id,transports FROM passkeys').all()).results;
   const publicKey = purpose === 'login'
     ? await generateAuthenticationOptions({ rpID, userVerification: 'required' })
-    : await generateRegistrationOptions({ rpName: 'Agent Whiteboard', rpID, userID: new TextEncoder().encode('owner'), userName: 'Owner', attestationType: 'none', authenticatorSelection: { residentKey: 'required', userVerification: 'required' }, excludeCredentials: credentials.map((c: any) => ({ id: c.id, transports: JSON.parse(c.transports) })) });
+    : await generateRegistrationOptions({ rpName: 'Self-hosted MCP App', rpID, userID: new TextEncoder().encode('owner'), userName: 'Owner', attestationType: 'none', authenticatorSelection: { residentKey: 'required', userVerification: 'required' }, excludeCredentials: credentials.map((c: any) => ({ id: c.id, transports: JSON.parse(c.transports) })) });
   const id = random();
   await env.DB.prepare('INSERT INTO webauthn_challenges (id,challenge,purpose,browser_digest,auth_epoch,key_generation,canonical_origin,rp_id,expires_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(id, publicKey.challenge, purpose, await digest(browser), s.auth_epoch, generation, origin, rpID, now() + 300).run();
   return json({ id, publicKey }, 200, headers);

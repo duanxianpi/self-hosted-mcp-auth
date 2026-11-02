@@ -65,9 +65,9 @@ test('Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinc
       assert.equal((await post(page, '/auth/bootstrap/options', { key, canonicalOrigin: ORIGIN })).status, 409);
     });
     const oldCookie = (await context.cookies()).find(c => c.name === '__Host-owner').value;
-    await t.test('explicit denial returns access_denied', () => mint('whiteboard:read', 'deny'));
+    await t.test('explicit denial returns access_denied', () => mint('mcp:read', 'deny'));
     let readTokens, writeTokens;
-    await t.test('PKCE, audience and code replay are enforced', async () => { const replayed = await mint('whiteboard:read', 'approve', true); assert.equal((await rpc(replayed.access_token, 'owner_status')).status, 401); readTokens = await mint('whiteboard:read offline_access'); writeTokens = await mint('whiteboard:read whiteboard:write offline_access'); });
+    await t.test('PKCE, audience and code replay are enforced', async () => { const replayed = await mint('mcp:read', 'approve', true); assert.equal((await rpc(replayed.access_token, 'owner_status')).status, 401); readTokens = await mint('mcp:read offline_access'); writeTokens = await mint('mcp:read mcp:write offline_access'); });
     await t.test('MCP props resolve the same owner; read token cannot write', async () => {
       assert.equal((await rpc(readTokens.access_token, 'owner_status')).status, 200);
       assert.equal((await rpc(readTokens.access_token, 'set_test_note', { text: 'forbidden' })).payload.result.isError, true);
@@ -133,7 +133,7 @@ test('Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinc
       assert.equal((await db.prepare('SELECT count(*) AS n FROM owner').first()).n, 1);
     });
     await t.test('Connected Apps revocation blocks token use without ending Web session', async () => {
-      const token = await mint('whiteboard:read whiteboard:write offline_access');
+      const token = await mint('mcp:read mcp:write offline_access');
       await page.goto(ORIGIN + '/app');
       const grants = await page.evaluate(async () => (await fetch('/api/grants')).json());
       const selected = grants.items.find(g => g.clientId === token.clientId); assert(selected);
@@ -142,7 +142,7 @@ test('Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinc
       assert.equal(await page.evaluate(async () => (await fetch('/api/me')).status), 200);
     });
     if (process.env.AUTH_TEST_EXPORT_CLIENT === '1') {
-      const tokens = await mint('whiteboard:read whiteboard:write offline_access');
+      const tokens = await mint('mcp:read mcp:write offline_access');
       await mkdir(new URL('../.private/', import.meta.url), { recursive: true, mode: 0o700 });
       await writeFile(new URL('../.private/client.json', import.meta.url), JSON.stringify({ origin: ORIGIN, ...tokens }), { mode: 0o600 });
       await context.storageState({ path: new URL('../.private/browser-state.json', import.meta.url).pathname });

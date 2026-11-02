@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "whiteboard-self-hosted-auth",
+  "name": "self-hosted-mcp-auth",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-02",
   "compatibility_flags": ["global_fetch_strictly_public", "nodejs_compat"],

@@ -12,7 +12,7 @@ async function authorize(request: Request, env: Env, origin: string) {
     if (!user) return Response.redirect(origin + '/login?returnTo=' + encodeURIComponent(new URL(request.url).pathname + new URL(request.url).search), 302);
     const detail = await env.OAUTH_PROVIDER.describeConsent(authRequest);
     const consent = await env.OAUTH_PROVIDER.beginConsent(authRequest);
-    const rendered = page('Authorize application', `<p><strong>${escape(detail.clientName)}</strong> requests access to your Whiteboard.</p><p>${detail.clientDomain ? 'Client domain: <strong>' + escape(detail.clientDomain) + '</strong>' : 'Self-registered client; its name is not verified.'}</p><p>Redirect destination: <strong>${escape(detail.redirectHost)}</strong>${detail.redirectIsLoopback ? ' — an application on your computer. Only continue if you started this connection.' : ''}</p><p>Resource: <code>${escape(origin + '/mcp')}</code></p><form method="post" action="/authorize"><input type="hidden" name="handle" value="${escape(consent.handle)}">${detail.scope.map(scope => `<label><input type="checkbox" name="scope" value="${escape(scope)}" checked>${escape(scope)}</label>`).join('')}<button name="decision" value="approve">Allow</button> <button name="decision" value="deny">Deny</button></form>`);
+    const rendered = page('Authorize application', `<p><strong>${escape(detail.clientName)}</strong> requests access to your application.</p><p>${detail.clientDomain ? 'Client domain: <strong>' + escape(detail.clientDomain) + '</strong>' : 'Self-registered client; its name is not verified.'}</p><p>Redirect destination: <strong>${escape(detail.redirectHost)}</strong>${detail.redirectIsLoopback ? ' — an application on your computer. Only continue if you started this connection.' : ''}</p><p>Resource: <code>${escape(origin + '/mcp')}</code></p><form method="post" action="/authorize"><input type="hidden" name="handle" value="${escape(consent.handle)}">${detail.scope.map(scope => `<label><input type="checkbox" name="scope" value="${escape(scope)}" checked>${escape(scope)}</label>`).join('')}<button name="decision" value="approve">Allow</button> <button name="decision" value="deny">Deny</button></form>`);
     for (const [key, value] of rendered.headers) consent.headers.set(key, value);
     // Chromium checks OAuth form redirects against form-action as well. Only the SDK-validated
     // redirect origin is added; an arbitrary caller-supplied redirect is never trusted here.
@@ -46,7 +46,7 @@ async function app(request: Request, env: Env) {
   if (path === '/' || path === '/app') {
     if (!s.initialized_at) return Response.redirect(url.origin + '/setup', 302);
     if (!(await session(request, env))) return Response.redirect(url.origin + '/login', 302);
-    return page('Whiteboard authentication ready', '<p>You are signed in with a Passkey. This is the authentication starter; the product canvas is integrated separately.</p><p>MCP address: <code>' + escape(s.canonical_origin + '/mcp') + '</code></p><p><a href="/settings/passkeys/add">Add another Passkey</a> · <a href="/settings/connected-apps">Connected applications</a></p><form id="logout"><button>Sign out of the Web App</button></form>', "document.querySelector('#logout').addEventListener('submit',async e=>{e.preventDefault();await fetch('/logout',{method:'POST'});location.assign('/login');});");
+    return page('Authentication ready', '<p>You are signed in with a Passkey. This is the authentication starter; the product canvas is integrated separately.</p><p>MCP address: <code>' + escape(s.canonical_origin + '/mcp') + '</code></p><p><a href="/settings/passkeys/add">Add another Passkey</a> · <a href="/settings/connected-apps">Connected applications</a></p><form id="logout"><button>Sign out of the Web App</button></form>', "document.querySelector('#logout').addEventListener('submit',async e=>{e.preventDefault();await fetch('/logout',{method:'POST'});location.assign('/login');});");
   }
   const user = await session(request, env);
   if (path.startsWith('/api/') || path === '/logout' || path === '/settings/connected-apps') assert(user, 401, 'Owner session required');
@@ -80,15 +80,15 @@ async function validGrant(env: Env, props: any) {
 }
 async function mcp(request: Request, env: Env, ctx: any) {
   if (!(await validGrant(env, ctx.props))) return json({ error: 'invalid_token' }, 401, { 'WWW-Authenticate': `Bearer resource_metadata="${(await state(env)).canonical_origin}/.well-known/oauth-protected-resource/mcp", error="invalid_token"` });
-  if (!ctx.auth.scope.includes('whiteboard:read')) return insufficientScope(ctx.auth, ['whiteboard:read']);
+  if (!ctx.auth.scope.includes('mcp:read')) return insufficientScope(ctx.auth, ['mcp:read']);
   const handler = createMcpHandler(() => {
-    const server = new McpServer({ name: 'self-hosted-whiteboard-auth', version: '0.1.0' });
+    const server = new McpServer({ name: 'self-hosted-mcp-auth', version: '0.1.0' });
     server.registerTool('owner_status', { description: 'Read the authenticated owner identity and the auth-starter test note.', inputSchema: z.object({}), annotations: { readOnlyHint: true } }, async () => {
       const note = await env.DB.prepare('SELECT value FROM auth_probe_note WHERE id=1').first<{ value: string }>();
       return { content: [{ type: 'text', text: JSON.stringify({ ownerId: ctx.props.ownerId, authEpoch: ctx.props.authEpoch, note: note?.value ?? null }) }] };
     });
-    server.registerTool('set_test_note', { description: 'Write an auth-starter test note; requires whiteboard:write. Not a production Whiteboard tool.', inputSchema: z.object({ text: z.string().max(1000) }), annotations: { readOnlyHint: false, destructiveHint: false } }, async ({ text }) => {
-      if (!ctx.auth.scope.includes('whiteboard:write')) return { isError: true, content: [{ type: 'text', text: 'Missing whiteboard:write scope' }] };
+    server.registerTool('set_test_note', { description: 'Write an auth-starter test note; requires mcp:write. Demonstrates scope enforcement.', inputSchema: z.object({ text: z.string().max(1000) }), annotations: { readOnlyHint: false, destructiveHint: false } }, async ({ text }) => {
+      if (!ctx.auth.scope.includes('mcp:write')) return { isError: true, content: [{ type: 'text', text: 'Missing mcp:write scope' }] };
       const result = await env.DB.prepare('INSERT INTO auth_probe_note (id,value) SELECT 1,? WHERE (SELECT auth_epoch FROM auth_state WHERE id=1)=? ON CONFLICT(id) DO UPDATE SET value=excluded.value').bind(text, ctx.props.authEpoch).run();
       assert(result.meta.changes === 1, 401, 'Authorization changed');
       return { content: [{ type: 'text', text: 'Saved test note' }] };
@@ -116,7 +116,7 @@ async function dispatch(request: Request, env: Env, ctx: ExecutionContext) {
   const provider = new OAuthProvider<Env>({
     apiRoute: origin + '/mcp', apiHandler: { fetch: mcp }, defaultHandler: { fetch: app },
     authorizeEndpoint: origin + '/authorize', tokenEndpoint: origin + '/oauth/token', clientRegistrationEndpoint: origin + '/oauth/register',
-    clientIdMetadataDocumentEnabled: true, scopesSupported: ['whiteboard:read', 'whiteboard:write', 'offline_access'], requiredScopes: ['whiteboard:read'],
+    clientIdMetadataDocumentEnabled: true, scopesSupported: ['mcp:read', 'mcp:write', 'offline_access'], requiredScopes: ['mcp:read'],
     resourceMetadata: { resource: origin + '/mcp', authorization_servers: [origin] },
     accessTokenTTL: 300, refreshTokenTTL: 2592000,
     tokenExchangeCallback: async ({ props, env }) => { if (!(await validGrant(env, props))) throw new OAuthError('invalid_grant', { description: 'Owner authorization is no longer valid' }); },

@@ -1,10 +1,12 @@
-# Agent Whiteboard: self-hosted authentication
+# Self-hosted MCP Auth
 
 One owner, Passkeys for the Web App, OAuth for Remote MCP. Runs in one Cloudflare Worker with D1 and the OAuth SDK's KV namespace. No Zero Trust, social OAuth App, external identity provider, or developer-operated authentication broker.
 
-This is the authentication starter for Agent Whiteboard. Its two test tools demonstrate shared owner identity and read/write scopes; the product canvas and four Whiteboard tools are integrated separately.
+A single-owner authentication starter for self-hosted Web + Remote MCP applications. Its two test tools demonstrate shared owner identity and read/write scopes.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/duanxianpi/agent-whiteboard-auth)
+Agent Whiteboard integrates authentication directly into its application Worker. This repository is a reusable reference; applications do not depend on a separate authentication deployment or broker.
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/duanxianpi/self-hosted-mcp-auth)
 
 ## Set up your deployment
 

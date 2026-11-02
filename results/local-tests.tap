@@ -3,97 +3,97 @@ TAP version 13
     # Subtest: anonymous visits create one D1-only key without leaking it
     ok 1 - anonymous visits create one D1-only key without leaking it
       ---
-      duration_ms: 32.266334
+      duration_ms: 25.394125
       type: 'test'
       ...
     # Subtest: wrong key, cross-origin and unconfirmed origin fail
     ok 2 - wrong key, cross-origin and unconfirmed origin fail
       ---
-      duration_ms: 392.447417
+      duration_ms: 24.606958
       type: 'test'
       ...
     # Subtest: real browser registers a UV Passkey and receives an opaque secure session
     ok 3 - real browser registers a UV Passkey and receives an opaque secure session
       ---
-      duration_ms: 407.153042
+      duration_ms: 455.707917
       type: 'test'
       ...
     # Subtest: explicit denial returns access_denied
     ok 4 - explicit denial returns access_denied
       ---
-      duration_ms: 303.660959
+      duration_ms: 155.093042
       type: 'test'
       ...
     # Subtest: PKCE, audience and code replay are enforced
     ok 5 - PKCE, audience and code replay are enforced
       ---
-      duration_ms: 411.431625
+      duration_ms: 420.459542
       type: 'test'
       ...
     # Subtest: MCP props resolve the same owner; read token cannot write
     ok 6 - MCP props resolve the same owner; read token cannot write
       ---
-      duration_ms: 25.530125
+      duration_ms: 25.869292
       type: 'test'
       ...
     # Subtest: cookie and bearer credentials are not interchangeable
     ok 7 - cookie and bearer credentials are not interchangeable
       ---
-      duration_ms: 3.690625
+      duration_ms: 3.604333
       type: 'test'
       ...
     # Subtest: recovery GET and failed ceremony leave the recovery key usable
     ok 8 - recovery GET and failed ceremony leave the recovery key usable
       ---
-      duration_ms: 66.666333
+      duration_ms: 82.16075
       type: 'test'
       ...
     # Subtest: recovery rotates key and rejects old sessions, access and refresh paths
     ok 9 - recovery rotates key and rejects old sessions, access and refresh paths
       ---
-      duration_ms: 16.334709
+      duration_ms: 19.434
       type: 'test'
       ...
     # Subtest: replacement Passkey logs in; logout revokes the exact cookie
     ok 10 - replacement Passkey logs in; logout revokes the exact cookie
       ---
-      duration_ms: 386.654291
+      duration_ms: 249.257
       type: 'test'
       ...
     # Subtest: expired, browser-unbound and replayed login challenges fail
     ok 11 - expired, browser-unbound and replayed login challenges fail
       ---
-      duration_ms: 74.047708
+      duration_ms: 70.100292
       type: 'test'
       ...
     # Subtest: two recovery finalizations commit exactly one replacement and rotation
     ok 12 - two recovery finalizations commit exactly one replacement and rotation
       ---
-      duration_ms: 91.462709
+      duration_ms: 91.729458
       type: 'test'
       ...
     # Subtest: Connected Apps revocation blocks token use without ending Web session
     ok 13 - Connected Apps revocation blocks token use without ending Web session
       ---
-      duration_ms: 167.036542
+      duration_ms: 173.79375
       type: 'test'
       ...
     1..13
 ok 1 - Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinct credentials
   ---
-  duration_ms: 9294.991333
+  duration_ms: 3386.34675
   type: 'test'
   ...
 # Subtest: D1 singleton guard, concurrent claims, and forced-failure rollback
 ok 2 - D1 singleton guard, concurrent claims, and forced-failure rollback
   ---
-  duration_ms: 239.802791
+  duration_ms: 258.247542
   type: 'test'
   ...
 # Subtest: single Worker builds SDK metadata from D1 canonical origin and rejects other hosts
 ok 3 - single Worker builds SDK metadata from D1 canonical origin and rejects other hosts
   ---
-  duration_ms: 178.047041
+  duration_ms: 192.078167
   type: 'test'
   ...
 1..3
@@ -104,4 +104,4 @@ ok 3 - single Worker builds SDK metadata from D1 canonical origin and rejects ot
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 10268.861875
+# duration_ms 4420.223542

@@ -14,8 +14,8 @@ export default {
       authorizeEndpoint: origin + '/authorize', tokenEndpoint: origin + '/oauth/token',
       clientRegistrationEndpoint: origin + '/oauth/register',
       clientIdMetadataDocumentEnabled: true,
-      scopesSupported: ['whiteboard:read', 'whiteboard:write', 'offline_access'],
-      requiredScopes: ['whiteboard:read'],
+      scopesSupported: ['mcp:read', 'mcp:write', 'offline_access'],
+      requiredScopes: ['mcp:read'],
       resourceMetadata: { resource: origin + '/mcp', authorization_servers: [origin] },
     });
     return provider.fetch(request, env, ctx);
