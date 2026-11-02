@@ -1,0 +1,8 @@
+{
+  "at": "2026-11-02T18:51:29.788Z",
+  "origin": "https://mcp-auth-button-test.duanxianpi.workers.dev",
+  "passed": true,
+  "owner_passkeys_keys_epoch_preserved": true,
+  "existing_oauth_token_preserved": true,
+  "migrations_reapplied_without_reset": true
+}

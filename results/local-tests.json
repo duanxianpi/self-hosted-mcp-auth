@@ -1,9 +1,11 @@
 {
-  "at": "2026-11-02T18:25:08.599Z",
-  "environment": "Miniflare/workerd + Edge virtual WebAuthn",
+  "at": "2026-11-02T18:54:46.682Z",
+  "environment": "Miniflare/workerd + virtual WebAuthn",
+  "browser": "Microsoft Edge",
+  "platform": "darwin",
   "exit_code": 0,
   "passed": true,
-  "tests": 16,
-  "pass": 16,
+  "tests": 18,
+  "pass": 18,
   "fail": 0
 }

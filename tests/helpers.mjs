@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
@@ -35,7 +36,8 @@ export async function browserFixture(mf) {
   await new Promise((resolve, reject) => { callbackServer.once('error', reject); callbackServer.listen(0, '127.0.0.1', resolve); });
   const callbackUrl = `http://127.0.0.1:${callbackServer.address().port}/callback`;
   callbackServer.unref();
-  const browser = await chromium.launch({ executablePath: process.env.WHITEBOARD_BROWSER ?? (process.platform === 'darwin' ? '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge' : undefined), headless: true });
+  const edge = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge';
+  const browser = await chromium.launch({ executablePath: process.env.WHITEBOARD_BROWSER ?? (process.platform === 'darwin' && existsSync(edge) ? edge : undefined), headless: true });
   const context = await browser.newContext();
   if (!mf.remote) await context.route(ORIGIN + '/**', async route => {
     const request = route.request();

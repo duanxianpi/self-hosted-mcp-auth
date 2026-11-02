@@ -1,0 +1,8 @@
+{
+  "at": "2026-11-02T18:58:07.854Z",
+  "removed": [
+    "whiteboard-auth-poc-6752381e",
+    "mcp-auth-acceptance-mvzln0th"
+  ],
+  "retained": "mcp-auth-button-test: browser-deployed acceptance instance and private Git copy retained for inspection"
+}

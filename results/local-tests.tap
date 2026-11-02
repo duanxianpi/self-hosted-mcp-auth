@@ -3,105 +3,127 @@ TAP version 13
     # Subtest: anonymous visits create one D1-only key without leaking it
     ok 1 - anonymous visits create one D1-only key without leaking it
       ---
-      duration_ms: 25.394125
+      duration_ms: 27.767083
       type: 'test'
       ...
+# Browser console: Failed to load resource: the server responded with a status of 403 (Forbidden)
+# Browser console: Failed to load resource: the server responded with a status of 400 (Bad Request)
     # Subtest: wrong key, cross-origin and unconfirmed origin fail
     ok 2 - wrong key, cross-origin and unconfirmed origin fail
       ---
-      duration_ms: 24.606958
+      duration_ms: 26.070375
       type: 'test'
       ...
+# Browser console: Failed to load resource: the server responded with a status of 409 (Conflict)
     # Subtest: real browser registers a UV Passkey and receives an opaque secure session
     ok 3 - real browser registers a UV Passkey and receives an opaque secure session
       ---
-      duration_ms: 455.707917
+      duration_ms: 1490.415834
       type: 'test'
       ...
     # Subtest: explicit denial returns access_denied
     ok 4 - explicit denial returns access_denied
       ---
-      duration_ms: 155.093042
+      duration_ms: 125.714042
       type: 'test'
       ...
     # Subtest: PKCE, audience and code replay are enforced
     ok 5 - PKCE, audience and code replay are enforced
       ---
-      duration_ms: 420.459542
+      duration_ms: 419.3135
+      type: 'test'
+      ...
+    # Subtest: discovery, registered redirects and request size bounds are enforced
+    ok 6 - discovery, registered redirects and request size bounds are enforced
+      ---
+      duration_ms: 12.493542
+      type: 'test'
+      ...
+    # Subtest: expired SDK token records are rejected
+    ok 7 - expired SDK token records are rejected
+      ---
+      duration_ms: 138.975417
       type: 'test'
       ...
     # Subtest: MCP props resolve the same owner; read token cannot write
-    ok 6 - MCP props resolve the same owner; read token cannot write
+    ok 8 - MCP props resolve the same owner; read token cannot write
       ---
-      duration_ms: 25.869292
+      duration_ms: 20.716417
       type: 'test'
       ...
     # Subtest: cookie and bearer credentials are not interchangeable
-    ok 7 - cookie and bearer credentials are not interchangeable
+    ok 9 - cookie and bearer credentials are not interchangeable
       ---
-      duration_ms: 3.604333
+      duration_ms: 3.012625
       type: 'test'
       ...
+# Browser console: Failed to load resource: the server responded with a status of 400 (Bad Request)
+# Browser console: Failed to load resource: the server responded with a status of 400 (Bad Request)
     # Subtest: recovery GET and failed ceremony leave the recovery key usable
-    ok 8 - recovery GET and failed ceremony leave the recovery key usable
+    ok 10 - recovery GET and failed ceremony leave the recovery key usable
       ---
-      duration_ms: 82.16075
+      duration_ms: 71.535958
       type: 'test'
       ...
+# Browser console: Failed to load resource: the server responded with a status of 403 (Forbidden)
     # Subtest: recovery rotates key and rejects old sessions, access and refresh paths
-    ok 9 - recovery rotates key and rejects old sessions, access and refresh paths
+    ok 11 - recovery rotates key and rejects old sessions, access and refresh paths
       ---
-      duration_ms: 19.434
+      duration_ms: 36.0065
       type: 'test'
       ...
     # Subtest: replacement Passkey logs in; logout revokes the exact cookie
-    ok 10 - replacement Passkey logs in; logout revokes the exact cookie
+    ok 12 - replacement Passkey logs in; logout revokes the exact cookie
       ---
-      duration_ms: 249.257
+      duration_ms: 238.392333
       type: 'test'
       ...
+# Browser console: Failed to load resource: the server responded with a status of 400 (Bad Request)
+# Browser console: Failed to load resource: the server responded with a status of 400 (Bad Request)
+# Browser console: Failed to load resource: the server responded with a status of 400 (Bad Request)
     # Subtest: expired, browser-unbound and replayed login challenges fail
-    ok 11 - expired, browser-unbound and replayed login challenges fail
+    ok 13 - expired, browser-unbound and replayed login challenges fail
       ---
-      duration_ms: 70.100292
+      duration_ms: 62.743458
       type: 'test'
       ...
+# Browser console: Failed to load resource: the server responded with a status of 400 (Bad Request)
     # Subtest: two recovery finalizations commit exactly one replacement and rotation
-    ok 12 - two recovery finalizations commit exactly one replacement and rotation
+    ok 14 - two recovery finalizations commit exactly one replacement and rotation
       ---
-      duration_ms: 91.729458
+      duration_ms: 91.894083
       type: 'test'
       ...
     # Subtest: Connected Apps revocation blocks token use without ending Web session
-    ok 13 - Connected Apps revocation blocks token use without ending Web session
+    ok 15 - Connected Apps revocation blocks token use without ending Web session
       ---
-      duration_ms: 173.79375
+      duration_ms: 164.623292
       type: 'test'
       ...
-    1..13
+    1..15
 ok 1 - Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinct credentials
   ---
-  duration_ms: 3386.34675
+  duration_ms: 4647.671541
   type: 'test'
   ...
 # Subtest: D1 singleton guard, concurrent claims, and forced-failure rollback
 ok 2 - D1 singleton guard, concurrent claims, and forced-failure rollback
   ---
-  duration_ms: 258.247542
+  duration_ms: 236.7195
   type: 'test'
   ...
 # Subtest: single Worker builds SDK metadata from D1 canonical origin and rejects other hosts
 ok 3 - single Worker builds SDK metadata from D1 canonical origin and rejects other hosts
   ---
-  duration_ms: 192.078167
+  duration_ms: 183.192458
   type: 'test'
   ...
 1..3
-# tests 16
+# tests 18
 # suites 0
-# pass 16
+# pass 18
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 4420.223542
+# duration_ms 5619.539333

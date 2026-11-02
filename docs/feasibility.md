@@ -1,56 +1,51 @@
 # Self-hosted MCP auth feasibility
 
-Checked 2026-11-02. Scope: `self_hosted_mcp_auth_handoff.md`. This report is updated as implementation evidence is collected.
+Verified 2026-11-02 against `self_hosted_mcp_auth_handoff.md`, current primary documentation, pinned SDK source and working deployments. The core architecture is feasible and implemented. Physical-device and individual consumer onboarding remain explicit compatibility follow-ups.
 
-## Phase 0 evidence and decisions
+| Blocker / contract | Result |
+|---|---|
+| Single Worker OAuthProvider + Passkey Web App | Tested locally and on workers.dev; no split service required |
+| Unknown deployment URL | Owner proves D1 key and confirms exact HTTPS origin during WebAuthn enrollment; D1 locks issuer, RP ID and resource. Provider is constructed per request with absolute canonical URLs; another origin returns 421 |
+| Atomic claim/recovery | D1 batch plus a SQL guard trigger; concurrent claims and forced-failure rollback passed |
+| D1/KV auto-provisioning | CLI and actual Deploy Button passed; no extra admin KV or Durable Object |
+| First CLI migration before resource creation | Disproved: absent auto-provisioned DB cannot be migrated. Script deploys a maintenance-only Worker, migrates, then publishes real code |
+| Deploy Button migration ordering | Actual button created D1/KV before custom deploy; both initial migrations applied and publish succeeded. Later Git build applied migration 0003 |
+| Extra signing/owner secrets | None required in selected SDK mode; optional remembered consent disabled |
+| Passkey verification | Real browser ceremonies verified by SimpleWebAuthn in local workerd and deployed Workers; virtual UV authenticator |
+| Recovery revocation | Old sessions/access/refresh rejected; local stale-KV restore still rejected by D1 epoch |
+| Connected Apps | Runtime exposed delayed KV listings. Added an immediate consent index and revocation marker in existing D1; SDK grant cleanup remains complementary |
+| CIMD + DCR | DCR/PKCE exercised end-to-end. Deployed SDK resolved Claude's actual public CIMD and checked its published redirect |
+| Independent MCP consumers | Inspector and real Codex read/write/read passed using browser-consented OAuth credentials; modern 2026 and legacy 2025 requests passed |
+| Owner and grants across redeploy | Fingerprinted owner/Passkey/key state unchanged; pre-existing OAuth token continued to work |
+| Whiteboard integration | Auth source embedded in Whiteboard's own Worker; protected original canvas asset and owner identity adapter passed integration test |
 
-| Contract / blocker | Status | Finding |
-|---|---|---|
-| Combined single-Worker OAuthProvider | tested | 1.2.4 works in workerd; no split Worker/service binding is required. |
-| Dynamic canonical issuer/resource | tested locally | Construct provider inside fetch from D1-persisted origin. Use absolute authorize/token/registration URLs and exact resource; reject a request on another origin before SDK dispatch. |
-| Canonical origin trust | design decision | Owner must explicitly confirm the HTTPS origin while proving the D1 key. Never persist an origin merely because a public request visited first. Registration ceremony binds this confirmation to the WebAuthn origin/RP ID. |
-| D1 transactional claim guard | tested locally | A BEFORE INSERT trigger aborts an invalid/replayed ceremony before a batch mutates owner/passkeys/keys. Concurrent claims produce one owner; a forced later constraint failure rolls back the entire operation. |
-| Empty-ID D1 + OAUTH_KV provisioning | tested deployed | Wrangler 4.156.1 created both bindings automatically on isolated `whiteboard-auth-poc-6752381e`. No extra admin KV or DO. |
-| CLI migration-before-provision | disproved deployed | `d1 migrations apply DB --remote` failed because the auto-named database did not exist. Deploying first, then migrating succeeded. |
-| Browser Deploy Button first-run ordering | unresolved | Docs say provisioning occurs in the button flow, but that is not proof of when a custom deploy script runs. Must test the actual button separately. |
-| Consent helpers and signing secrets | confirmed from SDK | begin/approve/deny consent use KV and browser-bound handles. A configured signing secret is only required for optional remembered-consent cookies, which this product does not enable. |
-| Epoch-aware refresh rejection | confirmed from SDK; runtime test pending | tokenExchangeCallback sees original grant props and env on code/refresh exchange. Throw SDK OAuthError(invalid_grant) on stale epoch; do not update stale props to the current epoch. |
-| Grant enumeration/revocation | confirmed from SDK; runtime test pending | listUserGrants(userId,{cursor}) and revokeGrant(grantId,userId). D1 epoch remains authoritative even if KV deletion has not propagated. |
-| Passkey verification on workerd/workers.dev | unresolved | Pin maintained SimpleWebAuthn 14.0.3 and prove with a real browser ceremony, including negative/replay cases. |
-| Client interoperability | unresolved | Test Inspector and a real AI client; document untested ChatGPT/Claude/Cursor flows individually. |
+Evidence: [button](../results/deploy-button.json), [local 18/18](../results/local-tests.json), [deployed 15/15](../results/remote-tests.json), [clients](../results/clients.json), [redeploy](../results/redeploy.json). Earlier intentional provisioning failure: [phase-0 transcript](../results/deployment-gate.json). Full boundaries: [validation matrix](validation.md).
 
-Initial local gate: **2/2 integration tests passed** in Miniflare/workerd. Deployed ordering/provisioning transcript: [deployment-gate.json](../results/deployment-gate.json). First failed migration is an intentional negative test, not hidden as a successful deployment.
+## Verified versions and design changes
 
-## Versions
+Workers OAuth Provider **1.2.4**, upstream source `b4cec3173079b42e3df2cb9f16a8ff13653709d0`; npm integrity `sha512-ayo6Z8DBHdAxwDpplFU8BrEoxoSn6wNo+E7ypTENRHUOc8R89A8/+nZ+a8pMZjjXzF0JXfpYXhw/7qqG+DC18Q==`. SimpleWebAuthn **14.0.3**, MCP server SDK **2.4.0**, Wrangler **4.156.1**, Inspector **2.13.0**. Application dependencies are locked.
 
-- `@cloudflare/workers-oauth-provider` **1.2.4**, npm integrity `sha512-ayo6Z8DBHdAxwDpplFU8BrEoxoSn6wNo+E7ypTENRHUOc8R89A8/+nZ+a8pMZjjXzF0JXfpYXhw/7qqG+DC18Q==`.
-- Official upstream source inspected at `b4cec3173079b42e3df2cb9f16a8ff13653709d0`.
-- `@simplewebauthn/server` **14.0.3**; MCP server SDK **2.4.0**; Wrangler **4.156.1**; all application dependencies locked in package-lock.
-- Wrangler now brings Miniflare 5; the old flat constructor options fail. Tests use its exported `convertV4MiniflareOptions` adapter rather than pretending the old constructor still works.
+Use the standard Wrangler template read by Deploy Button, rather than assuming a cf-only deployment config works with it. Miniflare 5 changed constructor options; tests use its exported compatibility adapter. Modern MCP requests need the routing headers and per-request envelope from the current SDK, not only a version header.
 
-## Deployment changes required
+The public generic repository is `duanxianpi/self-hosted-mcp-auth`. Whiteboard vendors the source and supplies `createAuthenticatedWorker(adapter)` hooks. It has no runtime dependency on a separate auth deployment. Existing handwriting/export behavior is preserved; Whiteboard's full Snapshot and feedback service implementation is a separate product milestone.
 
-Use a standard Wrangler template for the official Deploy Button. The earlier `cf` experiment remains valid as an independent deployment option; the button documentation explicitly reads Wrangler config, so a `cloudflare.config.ts`-only template is not assumed to work.
+## One-click deployment finding
 
-The deploy script must fail closed. Attempt the migration; if and only if the database is absent on first deployment, provision bindings with a maintenance-only Worker, apply migrations, then deploy the real Worker. A SQL/migration failure must stop deployment rather than reset state or silently continue.
+The official button successfully created a private Git copy, D1 and OAuth KV, ran `npm run build` and `npm run deploy`, and published workers.dev without entering Worker secrets or configuring Access/an upstream OAuth App. An expired pre-existing Cloudflare GitHub authorization initially blocked repository creation; the user refreshed the existing integration and the same template succeeded. A first-time user still needs Cloudflare account and Git integration authorization; the button does not remove platform login steps.
 
-No IdP, Access, GitHub OAuth App, new admin KV, external auth service, or Durable Object is introduced. The required OAuth KV remains because it is the SDK storage contract.
+The actual Dashboard Worker → DB → Console path was verified with a read-only query of admin-key availability, without displaying the key in evidence. See the recovery runbook for exact key-pickup SQL. Redeployments apply pending migrations and never reset owner or keys.
 
 ## Price check
 
-The handoff contains no numeric price promise. Auth itself uses one Worker, D1, one OAuth KV namespace and the native rate-limit binding. Workers/D1/KV have Free allocations; this does **not** guarantee an arbitrary deployment stays free. KV Free has 1,000 writes and 1,000 list requests per day; an OAuth login/refresh involves multiple operations. Check actual workerd CPU use and deployed request behavior before promising a Free-plan experience. Whiteboard image storage in R2 is separate from this auth-only PoC.
+The handoff contains no numeric price promise. This auth architecture needs one Worker, D1, SDK OAuth KV and the native approximate rate-limit binding. It has no separate auth-service subscription. Free allocations exist, but this is not a guarantee of zero cost: Workers Free has a 10 ms CPU limit per invocation, and KV Free allows 1,000 writes and 1,000 list operations/day. OAuth operations perform multiple storage requests; cryptographic CPU must be measured before promising Free-plan capacity. Workers Paid starts at USD $5/month. Full Whiteboard R2 image storage is separate.
 
-Current official sources: [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/), [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/), [KV pricing](https://developers.cloudflare.com/kv/platform/pricing/).
+[Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/), [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/), [KV pricing](https://developers.cloudflare.com/kv/platform/pricing/).
 
-## Primary architecture references
+## Primary references
 
-- [Provider README, including combined mode](https://github.com/cloudflare/workers-oauth-provider)
-- [SDK authorization contracts](https://github.com/cloudflare/workers-oauth-provider/blob/main/docs/authorization-server.md)
-- [SDK browser-bound consent](https://github.com/cloudflare/workers-oauth-provider/blob/main/docs/consent-page.md)
+- [Workers OAuth Provider](https://github.com/cloudflare/workers-oauth-provider), [authorization contracts](https://github.com/cloudflare/workers-oauth-provider/blob/main/docs/authorization-server.md), [consent helpers](https://github.com/cloudflare/workers-oauth-provider/blob/main/docs/consent-page.md)
 - [MCP 2026-07-28 authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
-- [Deploy Button provisioning and migrations](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
-- [D1 batch API](https://developers.cloudflare.com/d1/worker-api/d1-database/)
-- [SimpleWebAuthn server verification](https://simplewebauthn.dev/docs/packages/server)
-- [Approximate per-location rate limiting](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)
-
-Phase 0 establishes feasibility for incremental implementation. Remaining client/browser/deployment acceptance items above are not marked complete by source review alone.
+- [Deploy Button](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
+- [D1 batch API](https://developers.cloudflare.com/d1/worker-api/d1-database/), [Dashboard access](https://developers.cloudflare.com/d1/get-started/)
+- [SimpleWebAuthn verification](https://simplewebauthn.dev/docs/packages/server)
+- [Per-location approximate rate limiting](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/)

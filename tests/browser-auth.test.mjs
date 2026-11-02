@@ -132,6 +132,8 @@ test('Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinc
     await t.test('expired, browser-unbound and replayed login challenges fail', async () => {
       const prepared = await post(page, '/auth/login/options', {}); assert.equal(prepared.status, 200);
       const response = await page.evaluate(async publicKey => (await navigator.credentials.get({ publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(publicKey) })).toJSON(), prepared.data.publicKey);
+      const wrongRp = structuredClone(response); const authenticatorData = Buffer.from(wrongRp.response.authenticatorData, 'base64url'); authenticatorData[0] ^= 255; wrongRp.response.authenticatorData = authenticatorData.toString('base64url');
+      assert.equal((await post(page, '/auth/login/finish', { id: prepared.data.id, response: wrongRp })).status, 400);
       const unbound = await fetchWorker('/auth/login/finish', { method: 'POST', headers: { Origin: ORIGIN, 'content-type': 'application/json' }, body: JSON.stringify({ id: prepared.data.id, response }) }); assert(unbound.status >= 400);
       assert.equal((await post(page, '/auth/login/finish', { id: prepared.data.id, response })).status, 200);
       assert((await post(page, '/auth/login/finish', { id: prepared.data.id, response })).status >= 400);

@@ -1,0 +1,65 @@
+{
+  "at": "2026-11-02T18:51:25.274Z",
+  "origin": "https://mcp-auth-button-test.duanxianpi.workers.dev",
+  "authentication": "browser-consented DCR/PKCE OAuth; client consumes issued token, not its own OAuth onboarding",
+  "checks": {
+    "refresh": true,
+    "modern_2026": {
+      "passed": true,
+      "discover": {
+        "supportedVersions": [
+          "2026-07-28"
+        ],
+        "capabilities": {
+          "tools": {
+            "listChanged": true
+          }
+        },
+        "resultType": "complete",
+        "ttlMs": 0,
+        "cacheScope": "private",
+        "_meta": {
+          "io.modelcontextprotocol/serverInfo": {
+            "name": "self-hosted-mcp-auth",
+            "version": "0.1.0"
+          }
+        }
+      },
+      "tools": [
+        "owner_status",
+        "set_test_note"
+      ]
+    },
+    "claude_cimd": {
+      "status": 302,
+      "passed": true,
+      "boundary": "SDK resolved published client metadata; no Claude UI onboarding or consent performed"
+    },
+    "inspector": {
+      "passed": true,
+      "version": "2.13.0",
+      "list": "{\n  \"tools\": [\n    {\n      \"name\": \"owner_status\",\n      \"description\": \"Read the authenticated owner identity and the auth-starter test note.\",\n      \"inputSchema\": {\n        \"type\": \"object\",\n        \"properties\": {},\n        \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"\n      },\n      \"annotations\": {\n        \"readOnlyHint\": true\n      }\n    },\n    {\n      \"name\": \"set_test_note\",\n      \"description\": \"Write an auth-starter test note; requires mcp:write. Demonstrates scope enforcement.\",\n      \"inputSchema\": {\n        \"type\": \"object\",\n        \"properties\": {\n          \"text\": {\n            \"type\": \"string\",\n            \"maxLength\": 1000\n          }\n        },\n        \"required\": [\n          \"text\"\n        ],\n        \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"\n      },\n      \"annotations\": {\n        \"readOnlyHint\": false,\n        \"destructiveHint\": false\n      }\n    }\n  ]\n}\n",
+      "call": "{\n  \"content\": [\n    {\n      \"type\": \"text\",\n      \"text\": \"{\\\"ownerId\\\":1,\\\"authEpoch\\\":2,\\\"note\\\":\\\"test-note\\\"}\"\n    }\n  ]\n}\n"
+    },
+    "codex": {
+      "passed": true,
+      "calls": [
+        {
+          "tool": "owner_status",
+          "status": "completed"
+        },
+        {
+          "tool": "set_test_note",
+          "status": "completed"
+        },
+        {
+          "tool": "owner_status",
+          "status": "completed"
+        }
+      ],
+      "independent_readback": true,
+      "note": "real-codex-764d91a4-7dcc-4665-9d8a-70b7017f0d29"
+    }
+  },
+  "passed": true
+}

@@ -1,0 +1,17 @@
+{
+  "at": "2026-11-02T18:38:59Z",
+  "source_repository": "https://github.com/duanxianpi/self-hosted-mcp-auth",
+  "target_worker": "mcp-auth-button-test",
+  "passed": true,
+  "automatically_created": ["private Git repository", "D1 DB", "OAuth KV"],
+  "initial_build_id": "92439ca8-5954-490d-950d-c335f198808e",
+  "initial_version_id": "0901d236-5288-45cb-85af-510ebbc62aea",
+  "initial_migrations": ["0001_auth.sql", "0002_probe_and_revocation.sql"],
+  "git_update_build_id": "370bb6f6-d3ce-474b-b972-21291805e982",
+  "git_update_version_id": "acbb9309-382b-4660-a0a1-fea3765cb64c",
+  "incremental_migration": "0003_connected_apps.sql",
+  "extra_worker_secrets_entered": false,
+  "cloudflare_access_enabled": false,
+  "account_specific_blocker_resolved": "Expired existing Cloudflare GitHub authorization; user reauthorized the existing integration.",
+  "scope": "Existing Cloudflare account; brand-new account onboarding and physical Passkey device not claimed."
+}

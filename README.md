@@ -11,7 +11,7 @@ Agent Whiteboard integrates authentication directly into its application Worker.
 ## Set up your deployment
 
 1. Use the button and select your Cloudflare account and Worker name. Accept the template's `npm run deploy` command. No Worker secrets need to be entered.
-2. Open the deployed HTTPS address at `/setup`. In Cloudflare Dashboard, open your Worker's **DB** binding and the D1 `admin_keys` table. Copy `secret_display` from the `bootstrap` row.
+2. Open the deployed HTTPS address at `/setup`. In Cloudflare Dashboard, open your Worker's **DB** binding → **Explore Data** → `admin_keys`. Copy `secret_display` from the `bootstrap` row. Console alternative: `SELECT secret_display FROM admin_keys WHERE purpose='bootstrap';`.
 3. Enter that key on `/setup`, confirm the permanent deployment address, and register a Passkey. The claim key is consumed; a recovery key is now available only in D1.
 4. Add `https://<your-worker>.<your-subdomain>.workers.dev/mcp` to a Remote MCP client using OAuth. Sign in with your Passkey if needed, review the client identity, redirect destination, resource and scopes, then explicitly allow access.
 
@@ -33,6 +33,7 @@ Requires Node 24+, npm, and a Chromium-family browser. Tests use a disposable vi
 npm ci
 npm run typecheck
 npm run build
+npx playwright install chromium # Linux / machines without the configured browser
 node scripts/run-tests.mjs
 ```
 

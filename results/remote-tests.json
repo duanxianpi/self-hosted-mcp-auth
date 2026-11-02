@@ -1,0 +1,11 @@
+{
+  "at": "2026-11-02T18:50:21.375Z",
+  "environment": "https://mcp-auth-button-test.duanxianpi.workers.dev",
+  "browser": "Microsoft Edge",
+  "platform": "darwin",
+  "exit_code": 0,
+  "passed": true,
+  "tests": 15,
+  "pass": 15,
+  "fail": 0
+}

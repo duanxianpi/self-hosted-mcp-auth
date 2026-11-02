@@ -1,0 +1,11 @@
+{"type":"thread.started","thread_id":"01a19d9a-2dc6-74c2-8ed5-7eafb3caf5a9"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I’ll call the three auth_test tools in order and verify the persisted note."}}
+{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"auth_test","tool":"owner_status","arguments":{},"result":null,"error":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"auth_test","tool":"owner_status","arguments":{},"result":{"content":[{"type":"text","text":"{\"ownerId\":1,\"authEpoch\":2,\"note\":\"test-note\"}"}],"structured_content":null},"error":null,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_2","type":"mcp_tool_call","server":"auth_test","tool":"set_test_note","arguments":{"text":"real-codex-764d91a4-7dcc-4665-9d8a-70b7017f0d29"},"result":null,"error":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"mcp_tool_call","server":"auth_test","tool":"set_test_note","arguments":{"text":"real-codex-764d91a4-7dcc-4665-9d8a-70b7017f0d29"},"result":{"content":[{"type":"text","text":"Saved test note"}],"structured_content":null},"error":null,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_3","type":"mcp_tool_call","server":"auth_test","tool":"owner_status","arguments":{},"result":null,"error":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_3","type":"mcp_tool_call","server":"auth_test","tool":"owner_status","arguments":{},"result":{"content":[{"type":"text","text":"{\"ownerId\":1,\"authEpoch\":2,\"note\":\"real-codex-764d91a4-7dcc-4665-9d8a-70b7017f0d29\"}"}],"structured_content":null},"error":null,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_4","type":"agent_message","text":"{\"success\":true,\"ownerId\":1,\"note\":\"real-codex-764d91a4-7dcc-4665-9d8a-70b7017f0d29\"}"}}
+{"type":"turn.completed","usage":{"input_tokens":58025,"cached_input_tokens":51968,"cache_write_input_tokens":0,"output_tokens":203,"reasoning_output_tokens":0}}

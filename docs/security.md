@@ -21,6 +21,7 @@ D1 plaintext admin keys are intentional. Cloudflare administrators who can read 
 
 - Quotas and per-location limiting are not strict global abuse protection; public registration/challenge endpoints can consume free-tier operations.
 - KV is eventually consistent. D1 epoch/explicit app revocation protects private access; SDK records may remain visible briefly. SDK consent/code replay guarantees are bounded by its documented KV behavior.
+- The D1 Connected Apps index provides immediate consent listing and authoritative revocation even when KV listings lag. SDK cleanup is best effort after D1 revocation commits. A local negative test restores pre-recovery KV records and confirms stale access/refresh paths remain rejected.
 - D1 is read on private requests; do not switch auth reads to a replica without a demonstrated consistency design.
 - The supplied browser tests use virtual authenticators. Physical iPad/iCloud Keychain/Windows Hello and recovery UX need device validation.
 - A real custom-domain migration and each named consumer's OAuth onboarding must be recorded independently. Generic HTTP/PKCE success is not proof that every client's UI works.

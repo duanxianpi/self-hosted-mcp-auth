@@ -3,7 +3,7 @@
 ## Normal, browser-only recovery
 
 1. Open the deployed Worker's `/recover` page.
-2. In the Cloudflare Dashboard, open the Worker's DB binding, then the `admin_keys` table. Read `secret_display` for the `recovery` row. The application never displays this key.
+2. In Cloudflare Dashboard, open the Worker's DB binding, then **Explore Data** → `admin_keys`. Read `secret_display` for the `recovery` row. Alternatively, open **Console** and run `SELECT secret_display FROM admin_keys WHERE purpose='recovery';`. Keep the result private. The application never displays this key. The Worker → DB → Console route was checked in the live Dashboard on 2026-11-02.
 3. Enter the key and register a replacement Passkey on your new authenticator/device. If WebAuthn fails or is cancelled, retry with the same key.
 4. After success, the old key is invalid. The replacement key is in D1; old Passkeys, Web sessions, access tokens and refresh paths cannot regain private access.
 
