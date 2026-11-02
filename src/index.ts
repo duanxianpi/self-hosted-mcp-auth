@@ -5,6 +5,14 @@ import { assert, body, boundedText, csrf, escape, HttpError, json, now, random, 
 import { ensureBootstrap, options, finish } from './owner';
 import { authPage, page } from './pages';
 
+export interface OwnerIdentity { ownerId: number; authEpoch: number }
+export interface McpIdentity extends OwnerIdentity { scopes: readonly string[]; requireScope(scope: string): void }
+export interface ApplicationAdapter<E extends Env = Env> {
+  name: string;
+  renderApp?(request: Request, env: E, owner: OwnerIdentity): Promise<Response>;
+  web?(request: Request, env: E, owner: OwnerIdentity): Promise<Response | undefined>;
+  registerTools?(server: McpServer, env: E, owner: McpIdentity): void;
+}
 async function authorize(request: Request, env: Env, origin: string) {
   const user = await session(request, env);
   if (request.method === 'GET') {
@@ -29,10 +37,12 @@ async function authorize(request: Request, env: Env, origin: string) {
   const approved = await env.OAUTH_PROVIDER.approveConsent(request, handle, { scope: form.getAll('scope').map(String) });
   const authorizationId = random();
   const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({ request: approved.request, userId: '1', metadata: { authorizationId }, scope: approved.request.scope, props: { ownerId: 1, authEpoch: user.auth_epoch, authorizationId } });
+  const indexed = await env.DB.prepare('INSERT INTO connected_apps SELECT ?,?,?,?,? WHERE (SELECT auth_epoch FROM auth_state WHERE id=1)=?').bind(authorizationId, approved.request.clientId, JSON.stringify(approved.request.scope), user.auth_epoch, now(), user.auth_epoch).run();
+  assert(indexed.meta.changes === 1, 401, 'Authorization changed; sign in again');
   approved.headers.set('Location', redirectTo);
   return new Response(null, { status: 302, headers: approved.headers });
 }
-async function app(request: Request, env: Env) {
+async function app(request: Request, env: Env, adapter?: ApplicationAdapter<any>) {
   const url = new URL(request.url); const path = url.pathname; const s = await state(env);
   if (path === '/authorize') return authorize(request, env, s.canonical_origin!);
   if (request.method === 'GET' && ['/setup', '/login', '/recover', '/settings/passkeys/add'].includes(path)) {
@@ -45,7 +55,9 @@ async function app(request: Request, env: Env) {
   if (match) { assert(request.method === 'POST', 405); return match[2] === 'options' ? options(request, env, match[1]) : finish(request, env, match[1]); }
   if (path === '/' || path === '/app') {
     if (!s.initialized_at) return Response.redirect(url.origin + '/setup', 302);
-    if (!(await session(request, env))) return Response.redirect(url.origin + '/login', 302);
+    const signedIn = await session(request, env);
+    if (!signedIn) return Response.redirect(url.origin + '/login', 302);
+    if (adapter?.renderApp) return adapter.renderApp(request, env, { ownerId: signedIn.owner_id, authEpoch: signedIn.auth_epoch });
     return page('Authentication ready', '<p>You are signed in with a Passkey. This is the authentication starter; the product canvas is integrated separately.</p><p>MCP address: <code>' + escape(s.canonical_origin + '/mcp') + '</code></p><p><a href="/settings/passkeys/add">Add another Passkey</a> · <a href="/settings/connected-apps">Connected applications</a></p><form id="logout"><button>Sign out of the Web App</button></form>', "document.querySelector('#logout').addEventListener('submit',async e=>{e.preventDefault();await fetch('/logout',{method:'POST'});location.assign('/login');});");
   }
   const user = await session(request, env);
@@ -56,21 +68,34 @@ async function app(request: Request, env: Env) {
     await env.DB.prepare('DELETE FROM web_sessions WHERE digest=?').bind(user!.digest).run();
     return json({ ok: true }, 200, { 'Set-Cookie': setCookie('__Host-owner', '', 0) });
   }
-  if (path === '/api/grants' && request.method === 'GET') return json(await env.OAUTH_PROVIDER.listUserGrants('1', { cursor: url.searchParams.get('cursor') ?? undefined }));
+  if (path === '/api/grants' && request.method === 'GET') {
+    const after = url.searchParams.get('cursor') ?? '';
+    const rows = (await env.DB.prepare('SELECT authorization_id,client_id,scope,created_at FROM connected_apps WHERE auth_epoch=? AND authorization_id>? AND NOT EXISTS (SELECT 1 FROM oauth_revocations WHERE authorization_id=connected_apps.authorization_id) ORDER BY authorization_id LIMIT 51').bind(user!.auth_epoch, after).all<any>()).results;
+    return json({ items: rows.slice(0, 50).map(row => ({ id: row.authorization_id, clientId: row.client_id, scope: JSON.parse(row.scope), createdAt: row.created_at })), ...(rows.length > 50 ? { cursor: rows[49].authorization_id } : {}) });
+  }
   if (path === '/api/grants/revoke') {
     assert(request.method === 'POST', 405); csrf(request, s.canonical_origin!); assert(user!.created_at > now() - 300, 401, 'Reauthentication required');
     const data = await body(request); assert(typeof data.grantId === 'string');
-    let cursor: string | undefined; let selected: any;
-    do { const grants = await env.OAUTH_PROVIDER.listUserGrants('1', { cursor }); selected = grants.items.find(g => g.id === data.grantId); cursor = grants.cursor; } while (!selected && cursor);
+    const selected = await env.DB.prepare('SELECT authorization_id FROM connected_apps WHERE authorization_id=? AND auth_epoch=?').bind(data.grantId, user!.auth_epoch).first<{ authorization_id: string }>();
     assert(selected, 404, 'Grant not found');
-    if (selected.metadata?.authorizationId) await env.DB.prepare('INSERT OR IGNORE INTO oauth_revocations VALUES (?,?)').bind(selected.metadata.authorizationId, now()).run();
-    await env.OAUTH_PROVIDER.revokeGrant(selected.id, '1');
+    await env.DB.prepare('INSERT OR IGNORE INTO oauth_revocations VALUES (?,?)').bind(selected.authorization_id, now()).run();
+    // D1 is authoritative immediately. Best-effort SDK cleanup must not delay revocation.
+    try {
+      let cursor: string | undefined;
+      do { const grants = await env.OAUTH_PROVIDER.listUserGrants('1', { cursor }); for (const grant of grants.items) if (grant.metadata?.authorizationId === selected.authorization_id) await env.OAUTH_PROVIDER.revokeGrant(grant.id, '1'); cursor = grants.cursor; } while (cursor);
+    } catch { console.warn('oauth_grant_cleanup_deferred'); }
     return json({ ok: true });
   }
   if (path === '/settings/connected-apps') return page('Connected applications', '<p>Only applications you explicitly approve can use MCP. Revoking one does not sign you out of the Web App.</p><div id="grants"></div>', `
 const container=document.querySelector('#grants');let cursor;
 do{const r=await fetch('/api/grants'+(cursor?'?cursor='+encodeURIComponent(cursor):''));const page=await r.json();for(const grant of page.items||[]){const row=document.createElement('p');row.append(document.createTextNode(grant.clientId+' · '+grant.scope.join(', ')+' '));const button=document.createElement('button');button.textContent='Revoke';button.addEventListener('click',async()=>{const r=await fetch('/api/grants/revoke',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({grantId:grant.id})});if(r.ok)row.remove();else document.querySelector('#status').textContent='Sign in again and retry.';});row.append(button);container.append(row);}cursor=page.cursor;}while(cursor);
 `);
+  if (adapter?.web && path.startsWith('/api/')) {
+    assert(user, 401, 'Owner session required');
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method)) csrf(request, s.canonical_origin!);
+    const response = await adapter.web(request, env, { ownerId: user.owner_id, authEpoch: user.auth_epoch });
+    if (response) return response;
+  }
   return json({ error: 'Not found' }, 404);
 }
 async function validGrant(env: Env, props: any) {
@@ -78,11 +103,15 @@ async function validGrant(env: Env, props: any) {
   if (props?.ownerId !== 1 || props?.authEpoch !== current.auth_epoch || !current.initialized_at || typeof props.authorizationId !== 'string') return false;
   return !(await env.DB.prepare('SELECT 1 FROM oauth_revocations WHERE authorization_id=?').bind(props.authorizationId).first());
 }
-async function mcp(request: Request, env: Env, ctx: any) {
+async function mcp(request: Request, env: Env, ctx: any, adapter?: ApplicationAdapter<any>) {
   if (!(await validGrant(env, ctx.props))) return json({ error: 'invalid_token' }, 401, { 'WWW-Authenticate': `Bearer resource_metadata="${(await state(env)).canonical_origin}/.well-known/oauth-protected-resource/mcp", error="invalid_token"` });
   if (!ctx.auth.scope.includes('mcp:read')) return insufficientScope(ctx.auth, ['mcp:read']);
   const handler = createMcpHandler(() => {
-    const server = new McpServer({ name: 'self-hosted-mcp-auth', version: '0.1.0' });
+    const server = new McpServer({ name: adapter?.name ?? 'self-hosted-mcp-auth', version: '0.1.0' });
+    if (adapter?.registerTools) {
+      adapter.registerTools(server, env, { ownerId: ctx.props.ownerId, authEpoch: ctx.props.authEpoch, scopes: ctx.auth.scope, requireScope(scope) { assert(ctx.auth.scope.includes(scope), 403, 'Missing ' + scope + ' scope'); } });
+      return server;
+    }
     server.registerTool('owner_status', { description: 'Read the authenticated owner identity and the auth-starter test note.', inputSchema: z.object({}), annotations: { readOnlyHint: true } }, async () => {
       const note = await env.DB.prepare('SELECT value FROM auth_probe_note WHERE id=1').first<{ value: string }>();
       return { content: [{ type: 'text', text: JSON.stringify({ ownerId: ctx.props.ownerId, authEpoch: ctx.props.authEpoch, note: note?.value ?? null }) }] };
@@ -97,7 +126,7 @@ async function mcp(request: Request, env: Env, ctx: any) {
   }, { legacy: 'stateless', maxRequestBodySize: 65536 });
   return handler.fetch(request);
 }
-async function dispatch(request: Request, env: Env, ctx: ExecutionContext) {
+async function dispatch(request: Request, env: Env, ctx: ExecutionContext, adapter?: ApplicationAdapter<any>) {
   const url = new URL(request.url);
   assert(request.url.length <= 16384, 414, 'URL too long');
   if (env.AUTH_LIMITER && (url.pathname.startsWith('/auth/') || url.pathname.startsWith('/oauth/') || url.pathname === '/authorize')) {
@@ -108,13 +137,13 @@ async function dispatch(request: Request, env: Env, ctx: ExecutionContext) {
   if (s.canonical_origin) assert(url.origin === s.canonical_origin, 421, 'Canonical origin mismatch; use the original deployment address');
   if (!s.canonical_origin) {
     if (url.pathname.startsWith('/.well-known/') || url.pathname.startsWith('/oauth/') || url.pathname === '/mcp' || url.pathname === '/authorize') return json({ error: 'setup_required' }, 503);
-    return app(request, env);
+    return app(request, env, adapter);
   }
   if (url.pathname === '/mcp') { const origin = request.headers.get('Origin'); assert(!origin || origin === s.canonical_origin, 403, 'Origin rejected'); }
   const origin = s.canonical_origin;
   if (request.method === 'POST' && (url.pathname.startsWith('/oauth/') || url.pathname === '/authorize')) request = new Request(request, { body: await boundedText(request) });
   const provider = new OAuthProvider<Env>({
-    apiRoute: origin + '/mcp', apiHandler: { fetch: mcp }, defaultHandler: { fetch: app },
+    apiRoute: origin + '/mcp', apiHandler: { fetch: (request, env, ctx) => mcp(request, env, ctx, adapter) }, defaultHandler: { fetch: (request, env) => app(request, env, adapter) },
     authorizeEndpoint: origin + '/authorize', tokenEndpoint: origin + '/oauth/token', clientRegistrationEndpoint: origin + '/oauth/register',
     clientIdMetadataDocumentEnabled: true, scopesSupported: ['mcp:read', 'mcp:write', 'offline_access'], requiredScopes: ['mcp:read'],
     resourceMetadata: { resource: origin + '/mcp', authorization_servers: [origin] },
@@ -124,10 +153,10 @@ async function dispatch(request: Request, env: Env, ctx: ExecutionContext) {
   });
   return provider.fetch(request, env, ctx);
 }
-export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+export function createAuthenticatedWorker<E extends Env = Env>(adapter?: ApplicationAdapter<E>) { return {
+  async fetch(request: Request, env: E, ctx: ExecutionContext) {
     let response: Response;
-    try { response = await dispatch(request, env, ctx); }
+    try { response = await dispatch(request, env, ctx, adapter); }
     catch (error) {
       if (error instanceof AuthorizationError && error.redirectTo) response = Response.redirect(error.redirectTo, 302);
       else if (error instanceof HttpError) response = json({ error: error.message }, error.status);
@@ -138,4 +167,5 @@ export default {
     secured.headers.set('Cache-Control', 'no-store'); secured.headers.set('X-Content-Type-Options', 'nosniff'); secured.headers.set('X-Frame-Options', 'DENY'); secured.headers.set('Referrer-Policy', 'same-origin'); secured.headers.set('Strict-Transport-Security', 'max-age=31536000');
     return secured;
   },
-};
+}; }
+export default createAuthenticatedWorker();

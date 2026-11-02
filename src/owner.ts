@@ -14,7 +14,7 @@ async function proof(env: Env, purpose: string, key: unknown) {
 }
 function confirmedOrigin(value: unknown, request: Request) {
   assert(typeof value === 'string', 400, 'Confirm canonical HTTPS origin');
-  let url: URL; try { url = new URL(value); } catch { throw new Error('Invalid origin'); }
+  let url: URL; try { url = new URL(value); } catch { throw new HttpError(400, 'Invalid origin'); }
   assert(url.protocol === 'https:' && url.origin === value && url.origin === new URL(request.url).origin && !url.username && !url.password && !url.port, 400, 'Confirm the exact HTTPS origin shown in your browser');
   return { origin: value, rpID: url.hostname };
 }
@@ -55,7 +55,7 @@ export async function finish(request: Request, env: Env, purpose: string) {
   if (purpose === 'bootstrap' || purpose === 'recovery') keyDigest = (await proof(env, purpose, data.key)).hash;
   if (purpose === 'add') { const user = await session(request, env); assert(user && user.created_at > now() - 300, 401, 'Reauthentication required'); }
   let credential: any; let previousCounter: number | null = null;
-  if (purpose === 'login') {
+  try { if (purpose === 'login') {
     const saved = await env.DB.prepare('SELECT * FROM passkeys WHERE id=?').bind(data.response.id).first<any>();
     assert(saved, 400, 'Passkey verification failed'); previousCounter = saved.counter;
     const result = await verifyAuthenticationResponse({ response: data.response, expectedChallenge: c.challenge, expectedOrigin: c.canonical_origin, expectedRPID: c.rp_id, credential: { id: saved.id, publicKey: unb64(saved.public_key), counter: saved.counter, transports: JSON.parse(saved.transports) }, requireUserVerification: true });
@@ -66,7 +66,7 @@ export async function finish(request: Request, env: Env, purpose: string) {
     assert(result.verified && result.registrationInfo, 400, 'Passkey verification failed');
     const info = result.registrationInfo;
     credential = { ...info.credential, deviceType: info.credentialDeviceType, backedUp: info.credentialBackedUp };
-  }
+  } } catch { throw new HttpError(400, 'Passkey verification failed'); }
   const t = now(); const token = random(); const tokenDigest = await digest(token);
   const statements = [env.DB.prepare('INSERT INTO auth_operations (id,purpose,challenge_id,browser_digest,key_digest,auth_epoch,credential_id,previous_counter,created_at) VALUES (?,?,?,?,?,?,?,?,?)').bind(random(), purpose, c.id, browserDigest, keyDigest, c.auth_epoch, credential.id, previousCounter, t)];
   if (purpose === 'bootstrap') statements.push(env.DB.prepare('INSERT INTO owner VALUES (1,?)').bind(t));

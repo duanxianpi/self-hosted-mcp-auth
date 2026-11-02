@@ -1,12 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { fixture, browserFixture, ORIGIN, post, registerResponse } from './helpers.mjs';
 
 test('Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinct credentials', { timeout: 180000 }, async t => {
   const { mf, db } = await fixture();
-  const { browser, context, page, cdp, authenticatorId } = await browserFixture(mf);
+  let browserState;
+  try { browserState = await browserFixture(mf); } catch (error) { await mf.dispose(); throw error; }
+  const { close, context, page, cdp, authenticatorId, callbackUrl } = browserState;
   let replacementAuthenticator;
   const fetchWorker = (path, init) => mf.dispatchFetch(ORIGIN + path, init);
   const rpc = async (access, name, args = {}) => {
@@ -15,11 +17,11 @@ test('Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinc
     return { status: response.status, payload };
   };
   const mint = async (scope, decision = 'approve', replay = false) => {
-    const registration = await fetchWorker('/oauth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: '<unverified test client>', redirect_uris: ['http://127.0.0.1:8765/callback'], token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'] }) });
+    const registration = await fetchWorker('/oauth/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: '<unverified test client>', redirect_uris: [callbackUrl], token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'] }) });
     assert.equal(registration.status, 201);
     const client = await registration.json(); const verifier = randomBytes(32).toString('base64url');
     const challenge = createHash('sha256').update(verifier).digest('base64url');
-    const query = new URLSearchParams({ client_id: client.client_id, redirect_uri: 'http://127.0.0.1:8765/callback', response_type: 'code', scope, resource: ORIGIN + '/mcp', code_challenge: challenge, code_challenge_method: 'S256', state: 'test-state' });
+    const query = new URLSearchParams({ client_id: client.client_id, redirect_uri: callbackUrl, response_type: 'code', scope, resource: ORIGIN + '/mcp', code_challenge: challenge, code_challenge_method: 'S256', state: 'test-state' });
     await page.goto(ORIGIN + '/authorize?' + query);
     assert.match(await page.locator('main').innerText(), /Self-registered client/);
     assert.equal(await page.locator('main img').count(), 0);
@@ -27,10 +29,10 @@ test('Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinc
     await page.locator(`button[value=${decision}]`).click();
     const consentResponse = await submitted;
     assert.equal(consentResponse.status(), 302, consentResponse.status() === 302 ? '' : await consentResponse.text());
-    await page.waitForURL('http://127.0.0.1:8765/callback**');
+    await page.waitForURL(callbackUrl + '**');
     const redirected = new URL(page.url()); assert.equal(redirected.searchParams.get('state'), 'test-state'); assert.equal(redirected.searchParams.get('iss'), ORIGIN);
     if (decision === 'deny') { assert.equal(redirected.searchParams.get('error'), 'access_denied'); return; }
-    const fields = { grant_type: 'authorization_code', client_id: client.client_id, code: redirected.searchParams.get('code'), code_verifier: verifier, redirect_uri: 'http://127.0.0.1:8765/callback', resource: ORIGIN + '/mcp' };
+    const fields = { grant_type: 'authorization_code', client_id: client.client_id, code: redirected.searchParams.get('code'), code_verifier: verifier, redirect_uri: callbackUrl, resource: ORIGIN + '/mcp' };
     const exchange = overrides => fetchWorker('/oauth/token', { method: 'POST', body: new URLSearchParams({ ...fields, ...overrides }) });
     assert.equal((await exchange({ code_verifier: 'wrong-verifier' })).status, 400);
     assert.equal((await exchange({ resource: 'https://wrong.example/mcp' })).status, 400);
@@ -146,6 +148,7 @@ test('Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinc
       await mkdir(new URL('../.private/', import.meta.url), { recursive: true, mode: 0o700 });
       await writeFile(new URL('../.private/client.json', import.meta.url), JSON.stringify({ origin: ORIGIN, ...tokens }), { mode: 0o600 });
       await context.storageState({ path: new URL('../.private/browser-state.json', import.meta.url).pathname });
+      await chmod(new URL('../.private/browser-state.json', import.meta.url), 0o600);
     }
-  } finally { await browser.close(); await mf.dispose(); }
+  } finally { await close(); await mf.dispose(); }
 });

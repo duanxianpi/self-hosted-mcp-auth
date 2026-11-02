@@ -1,0 +1,62 @@
+// Acceptance only: consumes the OAuth credential exported by the disposable remote suite.
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { randomUUID } from 'node:crypto';
+import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+const exec = promisify(execFile);
+const root = fileURLToPath(new URL('../', import.meta.url));
+const credential = JSON.parse(await readFile(root + '.private/client.json', 'utf8'));
+const report = { at: new Date().toISOString(), origin: credential.origin, authentication: 'browser-consented DCR/PKCE OAuth; client consumes issued token, not its own OAuth onboarding', checks: {} };
+const refresh = await fetch(credential.origin + '/oauth/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: credential.clientId, refresh_token: credential.refresh_token, resource: credential.origin + '/mcp' }) });
+assert.equal(refresh.status, 200, 'OAuth refresh must succeed before client tests');
+const fresh = await refresh.json(); Object.assign(credential, fresh);
+await writeFile(root + '.private/client.json', JSON.stringify(credential), { mode: 0o600 });
+const secrets = [credential.access_token, credential.refresh_token].filter(Boolean);
+const clean = value => secrets.reduce((text, secret) => text.replaceAll(secret, '<redacted>'), String(value));
+const endpoint = credential.origin + '/mcp';
+const header = 'Authorization: Bearer ' + credential.access_token;
+const call = async (method, params = {}) => {
+    const response = await fetch(endpoint, { method: 'POST', headers: { Authorization: 'Bearer ' + credential.access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2026-07-28', 'Mcp-Method': method, ...(params.name ? { 'Mcp-Name': params.name } : {}) }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params: { ...params, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientInfo': { name: 'auth-acceptance', version: '0.1.0' }, 'io.modelcontextprotocol/clientCapabilities': {} } } }) });
+  const text = await response.text(); const data = text.startsWith('event:') ? JSON.parse(text.split('\n').find(line => line.startsWith('data: ')).slice(6)) : JSON.parse(text);
+  assert.equal(response.status, 200, clean(JSON.stringify(data))); assert(!data.error, clean(JSON.stringify(data.error))); return data.result;
+};
+try {
+  report.checks.refresh = true;
+  const discover = await call('server/discover');
+  const tools = await call('tools/list'); assert(tools.tools.some(tool => tool.name === 'owner_status'));
+  const status = await call('tools/call', { name: 'owner_status', arguments: {} });
+  assert.equal(JSON.parse(status.content[0].text).ownerId, 1);
+  report.checks.modern_2026 = { passed: true, discover, tools: tools.tools.map(tool => tool.name) };
+  const cimd = 'https://claude.ai/oauth/mcp-oauth-client-metadata';
+  const query = new URLSearchParams({ client_id: cimd, redirect_uri: 'https://claude.ai/api/mcp/auth_callback', response_type: 'code', scope: 'mcp:read', resource: endpoint, code_challenge: 'A'.repeat(43), code_challenge_method: 'S256', state: 'public-cimd-probe' });
+  const probe = await fetch(credential.origin + '/authorize?' + query, { redirect: 'manual' });
+  report.checks.claude_cimd = { status: probe.status, passed: probe.status === 302 && new URL(probe.headers.get('location')).pathname === '/login', boundary: 'SDK resolved published client metadata; no Claude UI onboarding or consent performed' };
+  assert(report.checks.claude_cimd.passed);
+  const inspector = process.env.INSPECTOR_CLI;
+  assert(inspector, 'Set INSPECTOR_CLI to the pinned Inspector launcher script');
+  const inspectorCall = async args => {
+    const { stdout } = await exec(process.execPath, [inspector, '--cli', endpoint, '--transport', 'http', '--method', ...args, '--header', header], { cwd: root, timeout: 45000, maxBuffer: 2 ** 20 });
+    return clean(stdout);
+  };
+  const listed = await inspectorCall(['tools/list']); assert(listed.includes('owner_status'));
+  const inspected = await inspectorCall(['tools/call', '--tool-name', 'owner_status']); assert(inspected.includes('ownerId'));
+  report.checks.inspector = { passed: true, version: '2.13.0', list: listed, call: inspected };
+  await mkdir(root + '.private/client-workspace', { recursive: true });
+  const nonce = 'real-codex-' + randomUUID();
+  const prompt = `This is a bounded MCP acceptance test. Use only the auth_test MCP tools. Do not inspect files, run commands, browse or use agents. Call owner_status, then set_test_note with text "${nonce}", then owner_status to confirm the exact note was persisted. End with JSON {"success":true,"ownerId":1,"note":"${nonce}"} only if observed.`;
+  const run = exec('codex', ['exec', '--ignore-user-config', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '-C', root + '.private/client-workspace', '--json', '-c', 'approval_policy="never"', '-c', 'features.shell_tool=false', '-c', 'features.apps=false', '-c', 'web_search="disabled"', '-c', 'model_reasoning_effort="low"', '-c', `mcp_servers.auth_test.url="${endpoint}"`, '-c', 'mcp_servers.auth_test.bearer_token_env_var="AUTH_ACCEPTANCE_TOKEN"', '-c', 'mcp_servers.auth_test.default_tools_approval_mode="approve"', '-c', 'mcp_servers.auth_test.startup_timeout_sec=30', prompt], { env: { ...process.env, AUTH_ACCEPTANCE_TOKEN: credential.access_token }, timeout: 120000, maxBuffer: 2 ** 22 });
+  run.child.stdin.end();
+  const { stdout } = await run;
+  const events = stdout.trim().split('\n').map(line => JSON.parse(line));
+  await writeFile(root + 'results/codex-events.jsonl', clean(stdout));
+  const calls = events.filter(event => event.type === 'item.completed' && event.item?.type === 'mcp_tool_call').map(event => ({ tool: event.item.tool, status: event.item.status }));
+  assert(calls.some(call => call.tool === 'set_test_note' && call.status === 'completed'));
+  const readback = await call('tools/call', { name: 'owner_status', arguments: {} });
+  assert.equal(JSON.parse(readback.content[0].text).note, nonce);
+  report.checks.codex = { passed: true, calls, independent_readback: true, note: nonce };
+  report.passed = true;
+} catch (error) { report.passed = false; report.error = clean(error.message); process.exitCode = 1; }
+await writeFile(root + 'results/clients.json', JSON.stringify(report, null, 2) + '\n');
+console.log(JSON.stringify(report, null, 2));
