@@ -38,6 +38,11 @@ export async function browserFixture(mf) {
   });
   await context.route('http://127.0.0.1:8765/callback**', route => route.fulfill({ body: 'Authorization returned' }));
   const page = await context.newPage();
+  // Report only the error class, never a callback URL (which can contain a code).
+  page.on('requestfailed', request => console.error('Browser request failed:', request.failure()?.errorText));
+  page.on('console', message => {
+    if (message.type() === 'error') console.error('Browser console:', message.text().replace(/https?:\/\/[^\s"'<>]+/g, '[URL omitted]'));
+  });
   page.setDefaultTimeout(7000);
   const cdp = await context.newCDPSession(page);
   await cdp.send('WebAuthn.enable');
