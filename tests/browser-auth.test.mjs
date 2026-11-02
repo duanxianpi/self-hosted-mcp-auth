@@ -70,6 +70,20 @@ test('Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinc
     await t.test('explicit denial returns access_denied', () => mint('mcp:read', 'deny'));
     let readTokens, writeTokens;
     await t.test('PKCE, audience and code replay are enforced', async () => { const replayed = await mint('mcp:read', 'approve', true); assert.equal((await rpc(replayed.access_token, 'owner_status')).status, 401); readTokens = await mint('mcp:read offline_access'); writeTokens = await mint('mcp:read mcp:write offline_access'); });
+    await t.test('discovery, registered redirects and request size bounds are enforced', async () => {
+      const protectedResponse = await fetchWorker('/mcp', { method: 'POST' }); assert.equal(protectedResponse.status, 401); assert.match(protectedResponse.headers.get('www-authenticate'), /resource_metadata=/);
+      const metadata = await (await fetchWorker('/.well-known/oauth-protected-resource/mcp')).json(); assert.equal(metadata.resource, ORIGIN + '/mcp');
+      const forged = new URLSearchParams({ client_id: readTokens.clientId, redirect_uri: 'https://attacker.example/callback', response_type: 'code', scope: 'mcp:read', resource: ORIGIN + '/mcp', code_challenge: 'A'.repeat(43), code_challenge_method: 'S256' });
+      const rejection = await fetchWorker('/authorize?' + forged); assert.equal(rejection.status, 400); assert.equal(rejection.headers.get('location'), null);
+      assert.equal((await fetchWorker('/oauth/token', { method: 'POST', body: 'x'.repeat(65537) })).status, 413);
+    });
+    if (!mf.remote) await t.test('expired SDK token records are rejected', async () => {
+      const token = await mint('mcp:read'); const [owner, grant] = token.access_token.split(':');
+      const kv = await mf.getKVNamespace('OAUTH_KV'); const records = await kv.list({ prefix: `token:${owner}:${grant}:` }); assert.equal(records.keys.length, 1);
+      const record = await kv.get(records.keys[0].name, 'json'); record.expiresAt = Math.floor(Date.now() / 1000) - 1;
+      await kv.put(records.keys[0].name, JSON.stringify(record));
+      assert.equal((await rpc(token.access_token, 'owner_status')).status, 401);
+    });
     await t.test('MCP props resolve the same owner; read token cannot write', async () => {
       assert.equal((await rpc(readTokens.access_token, 'owner_status')).status, 200);
       assert.equal((await rpc(readTokens.access_token, 'set_test_note', { text: 'forbidden' })).payload.result.isError, true);
@@ -85,6 +99,8 @@ test('Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinc
     await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
     ({ authenticatorId: replacementAuthenticator } = await cdp.send('WebAuthn.addVirtualAuthenticator', { options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true } }));
     const recovery = (await db.prepare("SELECT secret_display FROM admin_keys WHERE purpose='recovery'").first()).secret_display;
+    let oldKv = [];
+    if (!mf.remote) { const kv = await mf.getKVNamespace('OAUTH_KV'); for (const key of (await kv.list()).keys) oldKv.push([key.name, await kv.get(key.name)]); }
     await t.test('recovery GET and failed ceremony leave the recovery key usable', async () => {
       assert(!(await page.content()).includes(recovery));
       const prepared = await post(page, '/auth/recovery/options', { key: recovery }); assert.equal(prepared.status, 200);
@@ -96,6 +112,8 @@ test('Passkey bootstrap, OAuth PKCE and D1 recovery work end-to-end with distinc
       assert((await post(page, '/auth/recovery/finish', { id: prepared.data.id, key: recovery, response })).status >= 400);
     });
     await t.test('recovery rotates key and rejects old sessions, access and refresh paths', async () => {
+      // Simulate a stale KV replica returning every pre-recovery protocol record.
+      if (!mf.remote) { const kv = await mf.getKVNamespace('OAUTH_KV'); for (const [key, value] of oldKv) await kv.put(key, value); }
       assert.equal((await db.prepare('SELECT auth_epoch FROM auth_state').first()).auth_epoch, 1);
       assert.equal((await db.prepare("SELECT generation FROM admin_keys WHERE purpose='recovery'").first()).generation, 2);
       assert.equal((await fetchWorker('/api/me', { headers: { cookie: '__Host-owner=' + oldCookie } })).status, 401);
